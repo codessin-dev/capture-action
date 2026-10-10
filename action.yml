@@ -1,0 +1,80 @@
+# Codessin capture — GitHub Action
+#
+# Freezes your rendered UI in CI and uploads it to Codessin.
+# See README.md for workflow examples, or https://codessin.dev for docs.
+#
+# Canonical source lives in the Codessin monorepo at docs/capture-action/action.yml.
+# Edit it there; this repository is the published copy.
+
+name: Codessin capture
+description: Freeze your rendered UI in CI and upload it to Codessin.
+author: Codessin
+
+branding:
+  icon: camera
+  color: purple
+
+inputs:
+  api-key:
+    description: >-
+      Project API key carrying the capture:write scope. Absent on pull requests
+      from forks, where GitHub withholds secrets; the run is then skipped rather
+      than failed.
+    required: false
+  config:
+    description: Path to codessin.config.json, relative to working-directory.
+    required: false
+    default: codessin.config.json
+  working-directory:
+    description: Directory to run in. Set this for a package inside a monorepo.
+    required: false
+    default: "."
+  api-url:
+    description: Codessin API base URL. Override only for self-hosted instances.
+    required: false
+    default: https://api.codessin.dev
+  version:
+    description: >-
+      Exact @codessin/capture version to run. Pinned rather than floating: a
+      capture runner that changes under you changes what your captures look
+      like.
+    required: false
+    default: 0.1.0
+
+outputs:
+  run-url:
+    description: Link to this run in Codessin, when one was uploaded.
+    value: ${{ steps.capture.outputs.run-url }}
+
+runs:
+  using: composite
+  steps:
+    # Keyed by runner image and version: a browser built for a different
+    # runner will not launch, and a stale cache is worse than no cache.
+    - name: Restore Playwright browsers
+      id: browser-cache
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/ms-playwright
+        key: codessin-playwright-${{ runner.os }}-${{ runner.arch }}-${{ inputs.version }}
+
+    - name: Install Chromium
+      if: steps.browser-cache.outputs.cache-hit != 'true'
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: npx --yes playwright@1.63.0 install --with-deps chromium
+
+    - name: Capture
+      id: capture
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        # Masked by GitHub because it arrives from a secret; masking it again
+        # here guards the case where a caller passes it as a plain input.
+        CODESSIN_API_KEY: ${{ inputs.api-key }}
+        CODESSIN_API_URL: ${{ inputs.api-url }}
+      run: |
+        if [ -n "$CODESSIN_API_KEY" ]; then
+          echo "::add-mask::$CODESSIN_API_KEY"
+        fi
+        npx --yes "@codessin/capture@${{ inputs.version }}" run --config "${{ inputs.config }}"
