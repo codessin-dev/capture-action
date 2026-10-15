@@ -77,4 +77,8 @@ runs:
         if [ -n "$CODESSIN_API_KEY" ]; then
           echo "::add-mask::$CODESSIN_API_KEY"
         fi
+        # Printed because a moved-too-early tag silently pins an old runner:
+        # the action resolves, the step runs, and nothing says which version
+        # it actually used.
+        echo "Running @codessin/capture@${{ inputs.version }}"
         npx --yes "@codessin/capture@${{ inputs.version }}" run --config "${{ inputs.config }}"
