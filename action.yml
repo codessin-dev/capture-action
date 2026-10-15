@@ -39,7 +39,7 @@ inputs:
       capture runner that changes under you changes what your captures look
       like.
     required: false
-    default: 0.1.1
+    default: 0.1.2
 
 outputs:
   run-url:
